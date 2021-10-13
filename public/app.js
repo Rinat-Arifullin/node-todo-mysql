@@ -1,3 +1,41 @@
+const deleteTodoQuery = (id) => (
+    `mutation{
+        deleteTodo(id: ${id}){
+           id title done createdAt updatedAt
+        }
+    }`
+)
+
+const getTodosQuery =  (
+    ` query{
+            getTodos{
+                title id done createdAt updatedAt
+            }
+      }`
+)
+
+const addTodoQuery = (title)=>(`
+    mutation{
+        addTodo(todo:{title: "${title}"}){
+            id title done createdAt updatedAt
+        }
+    }
+`)
+
+const completeTodoQuery = (id) => (`
+    mutation{
+      completeTodoRequest(id: ${id}){
+        id updatedAt
+      }
+    }
+`)
+
+const fetchOptions = (query) => ({
+    method: 'post',
+    headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+    body: JSON.stringify({query})
+})
+
 new Vue({
     el: '#app',
     data() {
@@ -8,55 +46,50 @@ new Vue({
             todos: []
         }
     },
+
     created(){
-        fetch('/api/todo',{
-            method:'get'
-        })
-            .then((res)=>res.json())
-            .then(({todos})=>this.todos = todos)
-            .catch((err) => console.log(err))
+        fetch('/graphgl', fetchOptions(getTodosQuery))
+            .then(res => res.json())
+            .then((response)=> this.todos = response.data.getTodos)
     },
+
     methods: {
         addTodo() {
-            const title = this.todoTitle.trim()
+            const title = String(this.todoTitle.trim())
+
             if (!title) {
                 return
             }
-            fetch('/api/todo', {
-                method: 'post',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({title})
-            })
+
+            fetch('/graphgl', fetchOptions(addTodoQuery(title)))
                 .then(res=>res.json())
-                .then(({todo})=> {
-                    this.todos.push(todo)
+                .then((response)=> {
+                    this.todos.push(response.data.addTodo)
                     this.todoTitle = ''
                 })
                 .catch(err => console.log(err))
         },
+
         removeTodo(id) {
-            fetch('/api/todo/' + id, {
-                method: 'delete'
-            })
+            fetch('/graphgl', fetchOptions(deleteTodoQuery(id)))
                 .then(res => res.json())
-                .then(({todos})=>this.todos = todos)
+                .then((response)=>this.todos = response.data.deleteTodo)
                 .catch((e)=>console.log(e))
         },
+
         completeTodo(id){
-            fetch('/api/todo/' + id, {
-                method: 'put',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ done: true })
-            })
+            fetch('/graphgl', fetchOptions(completeTodoQuery(id)))
                 .then(res => res.json())
-                .then(({todo})=>{
-                    const idx = this.todos.find(t => t.id === todo.id)
+                .then((response)=>{
+                    const todo = response.data.completeTodoRequest
+                    const idx = this.todos.findIndex(t => +t.id === +todo.id)
                     const newTodosList = [...this.todos]
-                    newTodosList[idx].updatedAt = todo.updatedAt
+                    if(todo.updatedAt && newTodosList[idx].updatedAt){
+                        newTodosList[idx].updatedAt = todo.updatedAt
+                    }
                     this.todos = newTodosList
                 })
                 .catch(e => console.log(e))
-            console.log(id)
         }
     },
     filters: {
@@ -64,17 +97,7 @@ new Vue({
             return value.toString().charAt(0).toUpperCase() + value.slice(1)
         },
         date(value, withTime) {
-            const options = {
-                year: 'numeric',
-                month: 'long',
-                day: '2-digit'
-            }
-            if(withTime){
-                options.hour = '2-digit';
-                options.minute = '2-digit';
-                options.second = '2-digit';
-            }
-            return new Intl.DateTimeFormat('ru-RU',options ).format(new Date(value))
+            return new Date(+value).toLocaleDateString()
         }
     }
 })
